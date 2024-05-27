@@ -1,0 +1,84 @@
+WITH 
+  -- Calcul de la récence
+  Recence AS (
+    SELECT 
+      c.customer_unique_id, 
+      (julianday('2018-10-17') - julianday(MAX(o.order_delivered_customer_date))) AS recence
+    FROM 
+      customers c
+    JOIN 
+      orders o ON c.customer_id = o.customer_id
+    WHERE 
+      o.order_status <> 'canceled' -- Assure que la commande n'est pas annulée
+      AND o.order_delivered_customer_date IS NOT NULL -- Assure que la commande a été livrée
+    GROUP BY 
+      c.customer_unique_id
+  ),
+
+  -- Calcul de la fréquence
+  Frequence AS (
+    SELECT 
+      c.customer_unique_id, 
+      COUNT(DISTINCT o.order_id) AS frequence
+    FROM 
+      customers c
+    JOIN 
+      orders o ON c.customer_id = o.customer_id
+    WHERE 
+      o.order_status <> 'canceled' -- Assure que la commande n'est pas annulée
+      AND o.order_delivered_customer_date IS NOT NULL -- Assure que la commande a été livrée
+    GROUP BY 
+      c.customer_unique_id
+  ),
+
+  -- Calcul du montant total
+  Montant AS (
+    SELECT 
+      c.customer_unique_id,
+      SUM(oi.price) AS montant_total
+    FROM 
+      customers c
+    JOIN 
+      orders o ON c.customer_id = o.customer_id
+    JOIN 
+      order_items oi ON o.order_id = oi.order_id
+    WHERE 
+      o.order_status <> 'canceled' -- Assure que la commande n'est pas annulée
+      AND o.order_delivered_customer_date IS NOT NULL -- Assure que la commande a été livrée
+    GROUP BY 
+      c.customer_unique_id
+  ),
+
+  -- Calcul du score de review minimum
+  ScoreReview AS (
+    SELECT 
+      c.customer_unique_id,
+      MIN(r.review_score) AS score_review_minimum
+    FROM 
+      customers c
+    JOIN 
+      orders o ON c.customer_id = o.customer_id
+    JOIN 
+      order_reviews r ON o.order_id = r.order_id
+    WHERE 
+      o.order_status <> 'canceled' -- Assure que la commande n'est pas annulée
+      AND o.order_delivered_customer_date IS NOT NULL -- Assure que la commande a été livrée
+    GROUP BY 
+      c.customer_unique_id
+  )
+
+-- Jointure des résultats pour former le fichier client
+SELECT 
+    r.customer_unique_id,
+    r.recence,
+    f.frequence,
+    m.montant_total,
+    sr.score_review_minimum
+FROM 
+    Recence r
+JOIN 
+    Frequence f ON r.customer_unique_id = f.customer_unique_id
+JOIN 
+    Montant m ON r.customer_unique_id = m.customer_unique_id
+JOIN 
+    ScoreReview sr ON r.customer_unique_id = sr.customer_unique_id; 
